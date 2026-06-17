@@ -1,6 +1,6 @@
 # Mini DeepResearch Agent
 
-字节跳动 AI Platform 后端实习面试准备项目。目标不是“能跑的 demo”，而是每个设计决策都能讲清楚 why。
+后端实习面试准备项目。目标不是”能跑的 demo”，而是每个设计决策都能讲清楚 why。
 
 ## 核心流程
 
