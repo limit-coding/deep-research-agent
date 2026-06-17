@@ -43,14 +43,89 @@ tests/       # mock 掉 LLM/搜索后验证图的连线逻辑，不需要真实 
 reference/   # clone 的 langchain-ai/deep_research_from_scratch，只读，不提交进 git
 ```
 
+## 用到的开源工具是什么
+
+不熟悉这套生态的话，下面是个速查表，重点是"在这个项目里它具体管什么"，不是泛泛的官方介绍：
+
+- **uv**：Rust 写的 Python 包/项目管理器，比 `pip install` + `venv` 快很多，现在社区迁移很快。这里用它替代 pip：`uv sync` 一条命令建虚拟环境 + 装好 `pyproject.toml` 里声明的全部依赖，`uv.lock` 锁版本号（类似前端的 `package-lock.json`，保证别人 clone 下来装的版本跟你完全一致）。
+- **LangChain / langchain-core**：给"调用 LLM、消息格式、工具调用"定义了一套统一接口，换模型厂商不用改业务代码。`llm.py` 里的 `ChatAnthropic`/`ChatOpenAI`、`nodes.py` 里的 `HumanMessage`，都是它定义的抽象。
+- **LangGraph**：LangChain 团队做的"状态图"编排框架，比单纯一条 prompt 链更适合做有分支、循环的 agent 流程。我们的反思重试循环就是靠它的 `add_conditional_edges` 实现的，`graph.py` 是直接用它的地方。
+- **Pydantic**：数据校验库，写一个 class 就能描述"这个数据应该长什么样"。`nodes.py` 里的 `SubQuestions`/`Critique` 用它定义 schema，配合 LangChain 的 `with_structured_output`，强迫 LLM 输出符合这个结构的数据，而不是一段随意文本再自己写正则去解析。
+- **Tavily**：专门为 LLM agent 设计的搜索 API——返回的是适合喂给模型的摘要和正文，不是给人看的搜索结果网页，区别于自己爬 Google 或者调免费但不稳定的 DuckDuckGo。`tools.py` 是唯一调它的地方。
+- **Langfuse**：LLM 应用的可观测性 + 评测平台，开源、可自部署也有免费云版。这个项目用到它两个能力：tracing（`main.py` 里的 `CallbackHandler`，记录每次跑 agent 时每个节点/每次 LLM 调用的输入输出和耗时，方便排查"为什么这次结果不对"）和 Dataset/Evaluation（还没做的下一步，存评测题 + LLM-as-judge 自动打分）。同类工具里 LangSmith 是 LangChain 官方产品但闭源，选 Langfuse 是 CLAUDE.md 里定好的技术选型。
+- **pytest**：Python 最主流的测试框架。`tests/test_graph.py` 里用的 `@patch` 其实来自标准库 `unittest.mock`，不是 pytest 自带的，pytest 只是负责发现和运行这些测试函数。
+- **gh CLI**：GitHub 官方命令行工具。这次创建仓库、推送代码全程没碰浏览器，等价于网页上点 "New repository" 再 `git remote add` 再 `git push`，命令行一步到位。
+
 ## 怎么跑
 
+### 1. 装依赖
+
 ```bash
+cd /Users/limit/deep-research-agent
 uv sync --extra dev
-cp .env.example .env   # 填入真实的 ANTHROPIC_API_KEY/OPENAI_API_KEY、TAVILY_API_KEY
-uv run pytest -q       # 不需要任何 key，验证图的逻辑
+```
+
+`uv sync` 会在项目目录下建一个 `.venv/`，把 `pyproject.toml` 里声明的依赖都装进去。之后有两种方式执行命令：
+
+- 每次命令前加 `uv run`，比如 `uv run pytest`——不用管虚拟环境有没有激活，`uv` 自动用对的环境。
+- 或者先 `source .venv/bin/activate` 激活一次，之后这个终端窗口里直接 `pytest`、`python main.py` 就行，不用每次加前缀。退出用 `deactivate`。两种等价，看个人习惯。
+
+### 2. 配置 API key
+
+```bash
+cp .env.example .env
+```
+
+打开 `.env` 填入真实值，每个变量的作用：
+
+| 变量 | 作用 | 去哪儿拿 |
+|---|---|---|
+| `LLM_PROVIDER` | `anthropic` 或 `openai`，决定 `llm.py` 用哪家 | 不用申请，直接选 |
+| `ANTHROPIC_API_KEY` | provider 选 anthropic 时必填 | https://console.anthropic.com |
+| `OPENAI_API_KEY` | provider 选 openai 时必填 | https://platform.openai.com/account/api-keys |
+| `TAVILY_API_KEY` | 搜索功能必填，不填 `search` 节点会一直返回空结果 | https://app.tavily.com（免费额度每月 1000 次） |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | 选填，不填就是不接 tracing，`main.py` 里会自动跳过 | https://cloud.langfuse.com |
+| `MAX_RESEARCH_ITERATIONS` | 反思循环最多重新搜索几轮，默认 2 | 直接改数字 |
+
+`.env` 已经在 `.gitignore` 里，不会被提交。
+
+### 3. 先跑测试，确认骨架没问题（不需要任何 key）
+
+```bash
+uv run pytest -q
+```
+
+这一步把 `get_llm`/`web_search` 都 mock 掉了，只验证图的节点连线和状态流转对不对，几秒钟出结果，跟有没有配 key、key 是否有效完全无关。如果这一步过不了，先别管 key 的事，是代码本身有问题。
+
+### 4. 真实跑一次
+
+```bash
 uv run python main.py "LangGraph 和 LangChain 的关系是什么？"
 ```
+
+会依次打印每个节点的执行（如果之后接了 LangSmith/终端日志），最后输出大致是这样的结构：
+
+```
+========================================
+
+<综合报告正文，每条结论后面带 [1] [2] 这样的编号>
+
+## 参考来源
+[1] 标题 - 摘要 (https://...)
+[2] 标题 - 摘要 (https://...)
+
+## 反思记录（共 1 轮）
+<reflect 节点给出的自我批评文字>
+```
+
+如果配了 Langfuse key，这次运行会在 https://cloud.langfuse.com 的项目里出现一条完整 trace，能展开看每个节点的输入输出和耗时。
+
+### 故障排查
+
+- 报 `tavily.errors.MissingAPIKeyError`：`.env` 里没填 `TAVILY_API_KEY`，或者命令没有从这个目录下执行（`.env` 只在 cwd 下会被自动读取）。
+- 报 `openai.AuthenticationError` / `anthropic.AuthenticationError`：key 填错了或者是失效的占位 key，去对应平台后台确认。
+- `final_report` 里"参考来源"是空的：说明 `web_search` 全部失败了（看 `tools.py` 里 `logger.warning` 的输出），通常是 key 无效或者网络问题，不会让程序崩，但报告质量会很差。
+- 跑得很慢：每多一轮反思循环就要多跑一遍 search + synthesize + reflect，三次 LLM 调用，正常现象，调小 `MAX_RESEARCH_ITERATIONS` 能加快但报告质量可能下降。
 
 ## 关键设计决策（面试官问到怎么答）
 
