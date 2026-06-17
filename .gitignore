@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+*.egg-info/
+
+# 参考仓库只用来学习对照，不纳入版本控制
+reference/
