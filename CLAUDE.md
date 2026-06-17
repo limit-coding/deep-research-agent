@@ -1,6 +1,6 @@
 # 项目目标
 
-为后端实习生面试准备的项目：用 LangGraph 写一个 Mini DeepResearch Agent，
+为后端工程师面试准备的项目：用 LangGraph 写一个 Mini DeepResearch Agent，
 接 Langfuse 做全链路 tracing + 评测。目标不是"能跑的 demo"，而是能在面试里讲清楚每个设计决策。
 
 # 范围（已确认，不要扩大）
