@@ -1,0 +1,19 @@
+# 部署到 VPS 时放在 /etc/systemd/system/deepresearch-backend.service
+# 端口 18002、目录结构跟同一台机器上其他 FastAPI 服务（如 learnpath-backend.service）保持一致的约定。
+
+[Unit]
+Description=Deep Research Agent Demo Backend (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/lvchenghao/deep-research-agent
+Environment="PATH=/home/lvchenghao/deep-research-agent/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/lvchenghao/deep-research-agent/.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 18002
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
