@@ -52,8 +52,16 @@ def _stream_research(query: str) -> Iterable[ServerSentEvent]:
                 state.update(update)
             yield ServerSentEvent(data={"node": node_name, "update": update}, event="node")
 
+    # 故意不发 state["final_report"]：那是 output_node 为 CLI 拼好的单个字符串
+    # （报告 + 文本化来源列表 + 反思记录粘在一起），前端要分开渲染来源卡片和反思区块，
+    # 直接发还没拼接前的几个字段更直接，不用反过来从一段文本里解析。
     yield ServerSentEvent(
-        data={"final_report": state["final_report"], "sources": state["search_results"]},
+        data={
+            "report": state["draft_report"],
+            "sources": state["search_results"],
+            "critique": state["critique"],
+            "iteration": state["iteration"],
+        },
         event="done",
     )
 

@@ -74,8 +74,9 @@ def test_stream_research_emits_node_events_then_done(mock_get_llm, mock_get_stru
 
     done_payloads = [json.loads(data) for event, data in events if event == "done"]
     assert len(done_payloads) == 1
-    assert "综合报告草稿" in done_payloads[0]["final_report"]
+    assert "综合报告草稿" in done_payloads[0]["report"]
     assert done_payloads[0]["sources"] == mock_web_search.return_value
+    assert done_payloads[0]["critique"] == "信息充分"
 
 
 def test_rate_limit_returns_429_after_per_ip_max(monkeypatch):
