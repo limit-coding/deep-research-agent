@@ -19,5 +19,28 @@ def get_llm():
 
         model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         return ChatOpenAI(model=model, temperature=0)
+    elif provider == "deepseek":
+        # DeepSeek 的 API 跟 OpenAI 兼容，复用 ChatOpenAI 换个 base_url/key 即可，
+        # 不用单独装 langchain-deepseek 这类额外依赖。
+        from langchain_openai import ChatOpenAI
+
+        model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        return ChatOpenAI(
+            model=model,
+            temperature=0,
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url="https://api.deepseek.com",
+        )
 
     raise ValueError(f"未知的 LLM_PROVIDER: {provider}")
+
+
+def get_structured_llm(schema):
+    """统一走 tool-calling 的 structured output，而不是各家 SDK 默认值。
+
+    ChatOpenAI 的 with_structured_output 默认 method="json_schema"（OpenAI 的严格模式），
+    但 DeepSeek 等 OpenAI 兼容服务不支持这个 response_format，会直接 400。
+    function_calling 是 Anthropic/OpenAI/DeepSeek 三家都支持的最大公约数，
+    所以在这一处统一指定，调用方（nodes.py、eval）不需要关心具体用哪家。
+    """
+    return get_llm().with_structured_output(schema, method="function_calling")

@@ -39,5 +39,13 @@ def build_graph():
     graph.add_edge("synthesize", "reflect")
     graph.add_conditional_edges("reflect", route_after_reflect, {"search": "search", "output": "output"})
     graph.add_edge("output", END)
+    """
+    前四条边是固定路线，没什么好讲的。唯一的分支在 reflect
+  之后：route_after_reflect 这个函数会看"是否还需要更多研究"
+  + "已经反思了几轮"，决定走回 search（再查一遍）还是去
+  output（收尾）。这条"回头"的边就是整张图里唯一的循环，对应
+  CLAUDE.md 要求的"反思发现信息不足就重新检索"。
+    """
 
     return graph.compile()
+

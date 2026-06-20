@@ -11,18 +11,19 @@ def test_graph_compiles():
 
 
 @patch("deep_research_agent.nodes.web_search")
+@patch("deep_research_agent.nodes.get_structured_llm")
 @patch("deep_research_agent.nodes.get_llm")
-def test_graph_runs_end_to_end_with_mocked_llm_and_search(mock_get_llm, mock_web_search):
+def test_graph_runs_end_to_end_with_mocked_llm_and_search(mock_get_llm, mock_get_structured_llm, mock_web_search):
     """图的节点连线/状态流转是否正确，不依赖真实 LLM 或搜索 API key。
 
-    mock 掉两个唯一会发网络请求的边界函数（get_llm、web_search），
+    mock 掉三个唯一会发网络请求的边界函数（get_llm、get_structured_llm、web_search），
     其余完全跑真实的 LangGraph 执行逻辑，包括 reflect -> search 的循环分支。
     """
     mock_web_search.return_value = [
         {"query": "q", "title": "标题", "url": "https://example.com", "snippet": "摘要"}
     ]
 
-    def fake_with_structured_output(schema):
+    def fake_get_structured_llm(schema):
         fake_llm = MagicMock()
         if schema is SubQuestions:
             fake_llm.invoke.return_value = SimpleNamespace(sub_questions=["子问题1", "子问题2"])
@@ -34,10 +35,8 @@ def test_graph_runs_end_to_end_with_mocked_llm_and_search(mock_get_llm, mock_web
             ]
         return fake_llm
 
-    mock_llm = MagicMock()
-    mock_llm.with_structured_output.side_effect = fake_with_structured_output
-    mock_llm.invoke.return_value = SimpleNamespace(content="综合报告草稿")
-    mock_get_llm.return_value = mock_llm
+    mock_get_structured_llm.side_effect = fake_get_structured_llm
+    mock_get_llm.return_value = MagicMock(invoke=MagicMock(return_value=SimpleNamespace(content="综合报告草稿")))
 
     graph = build_graph()
     result = graph.invoke(initial_state("LangGraph 和 LangChain 有什么区别？"))

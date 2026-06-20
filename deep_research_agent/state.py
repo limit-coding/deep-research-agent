@@ -8,7 +8,15 @@ class SearchResult(TypedDict):
     url: str
     snippet: str
 
-
+"""
+把它想成一个"在5个节点之间传来传去的背包"，每个节点往里加
+  点东西。唯一不直观的地方是 search_results 那个
+  Annotated[..., operator.add]——LangGraph
+  默认规则是"节点返回什么字段，就覆盖背包里原来那个字段"，但
+  搜索这个节点会被进两次（第一次查初始子问题，反思后可能再查
+  一次），如果是覆盖，第一轮搜到的资料就被冲掉了。加这个标记
+  的意思是"这个字段遇到新值不覆盖，而是拼接"。
+"""
 class ResearchState(TypedDict):
     query: str
     sub_questions: list[str]

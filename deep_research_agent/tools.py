@@ -13,7 +13,9 @@ def _get_client() -> TavilyClient:
         _client = TavilyClient()  # 从 TAVILY_API_KEY 环境变量读取
     return _client
 
-
+"""就一个函数 web_search(query)，里面调
+  Tavily，失败了就返回空列表而不是报错崩掉——交给 reflect
+  节点去发现"这块信息没查到，要不要重试"，而不是让一次网络抖动炸掉整条流程。"""
 def web_search(query: str, max_results: int = 4) -> list[dict]:
     """统一的搜索接口，返回结构化的 {query, title, url, snippet} 列表。
 
