@@ -21,14 +21,25 @@ function sourceDomain(url) {
 }
 
 function SourceCard({ index, source }) {
+  const domain = sourceDomain(source.url)
   return (
     <li className="source-card">
-      <span className="source-index">[{index + 1}]</span>
+      <img
+        className="source-favicon"
+        src={`https://www.google.com/s2/favicons?sz=32&domain=${domain}`}
+        alt=""
+        onError={(event) => {
+          event.currentTarget.style.visibility = 'hidden'
+        }}
+      />
       <div className="source-body">
-        <a className="source-title" href={source.url} target="_blank" rel="noreferrer">
-          {source.title}
-        </a>
-        <span className="source-domain">{sourceDomain(source.url)}</span>
+        <div className="source-head">
+          <span className="source-index">[{index + 1}]</span>
+          <a className="source-title" href={source.url} target="_blank" rel="noreferrer">
+            {source.title}
+          </a>
+        </div>
+        <span className="source-domain">{domain}</span>
         <p className="source-snippet">{source.snippet}</p>
       </div>
     </li>
@@ -96,15 +107,31 @@ function App() {
   const completedNodes = new Set(steps.map((step) => step.node))
   const isStreaming = status === 'streaming'
 
+  const lastNode = steps.length > 0 ? steps[steps.length - 1].node : null
+  // 还没收到任何事件时，正在跑的肯定是第一个节点；收到事件后，正在跑的大概率是
+  // 顺序里的下一个（reflect 之后是回搜索还是去输出无法事先知道，这个近似已经够用——
+  // 真实下一个事件到达时马上会被纠正，不影响最终结果，只是过程中偶尔有一帧猜错）。
+  const currentNode = isStreaming
+    ? lastNode === null
+      ? NODE_ORDER[0]
+      : NODE_ORDER[Math.min(NODE_ORDER.indexOf(lastNode) + 1, NODE_ORDER.length - 1)]
+    : null
+
+  const subQuestions = steps.find((step) => step.node === 'decompose')?.update.sub_questions ?? []
+  const sourcesSoFar = steps
+    .filter((step) => step.node === 'search')
+    .reduce((sum, step) => sum + (step.update.search_results?.length ?? 0), 0)
+
   return (
     <div className="page">
       <header className="header">
+        <span className="badge">LangGraph · Reflexion-style demo</span>
         <h1>Mini DeepResearch Agent</h1>
         <p className="subtitle">
-          LangGraph 5 节点图：拆解 → 搜索 → 综合 → 反思（不充分则回到搜索） → 输出。
+          5 节点图：拆解 → 搜索 → 综合 → 反思（不充分则回到搜索） → 输出。
           {' '}
           <a href="https://github.com/limit-coding/deep-research-agent" target="_blank" rel="noreferrer">
-            查看源码
+            查看源码 →
           </a>
         </p>
       </header>
@@ -140,20 +167,46 @@ function App() {
       )}
 
       {status !== 'idle' && (
-        <ol className="progress">
-          {NODE_ORDER.map((node) => (
-            <li key={node} className={completedNodes.has(node) ? 'step done' : 'step'}>
-              {NODE_LABELS[node]}
-            </li>
-          ))}
-          {searchRounds > 1 && <li className="round-note">反思触发了第 {searchRounds} 轮检索</li>}
-        </ol>
+        <div className="progress-panel">
+          <ol className="progress">
+            {NODE_ORDER.map((node) => {
+              const state = completedNodes.has(node) && node !== currentNode
+                ? 'done'
+                : node === currentNode
+                  ? 'active'
+                  : 'pending'
+              return (
+                <li key={node} className={`step ${state}`}>
+                  <span className="step-dot" />
+                  {NODE_LABELS[node]}
+                  {node === 'search' && searchRounds > 1 && <span className="step-badge">×{searchRounds}</span>}
+                </li>
+              )
+            })}
+          </ol>
+
+          {subQuestions.length > 0 && (
+            <ul className="sub-questions">
+              {subQuestions.map((q) => (
+                <li key={q}>{q}</li>
+              ))}
+            </ul>
+          )}
+
+          {isStreaming && sourcesSoFar > 0 && <p className="live-note">已检索到 {sourcesSoFar} 条资料…</p>}
+        </div>
       )}
 
       {error && <p className="error">出错了：{error}</p>}
 
       {result && (
         <article className="report">
+          <div className="stats-bar">
+            <span>🔎 {subQuestions.length} 个子问题</span>
+            <span>📚 {result.sources.length} 条来源</span>
+            <span>♻️ 反思 {result.iteration} 轮</span>
+          </div>
+
           <ReactMarkdown>{result.report}</ReactMarkdown>
 
           {result.sources.length > 0 && (
