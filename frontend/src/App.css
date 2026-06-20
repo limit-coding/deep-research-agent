@@ -218,10 +218,118 @@
   padding: 0.3rem 0.6rem;
 }
 
-.live-note {
-  margin: 0.8rem 0 0;
-  font-size: 0.82rem;
+.live-sources {
+  margin-top: 1rem;
+}
+
+.live-sources h3,
+.live-reflections h3 {
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.5rem;
+}
+
+.live-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 0.3rem;
+}
+
+.live-source-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--ink);
+  text-decoration: none;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  animation: fade-in 0.3s ease-out;
+}
+
+.live-source-item:hover {
+  background: var(--accent-light);
+  color: var(--accent-dark);
+}
+
+.live-source-favicon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+
+.live-source-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.live-reflections {
+  margin-top: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.reflection-entry {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.reflection-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.verdict {
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-weight: 600;
+}
+
+.verdict.sufficient {
+  background: #e7f6ec;
+  color: #1e7e3c;
+}
+
+.verdict.insufficient {
+  background: #fdeee0;
+  color: #b35900;
+}
+
+.reflection-entry :is(p, li) {
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.reflection-entry > :first-child {
+  margin-top: 0;
+}
+
+.follow-up-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--accent-dark);
 }
 
 .error {

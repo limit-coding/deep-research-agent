@@ -46,6 +46,44 @@ function SourceCard({ index, source }) {
   )
 }
 
+function LiveSourceItem({ source }) {
+  const domain = sourceDomain(source.url)
+  return (
+    <a className="live-source-item" href={source.url} target="_blank" rel="noreferrer">
+      <img
+        className="live-source-favicon"
+        src={`https://www.google.com/s2/favicons?sz=16&domain=${domain}`}
+        alt=""
+        onError={(event) => {
+          event.currentTarget.style.visibility = 'hidden'
+        }}
+      />
+      <span className="live-source-title">{source.title}</span>
+    </a>
+  )
+}
+
+function ReflectionEntry({ reflection }) {
+  return (
+    <div className="reflection-entry">
+      <div className="reflection-head">
+        <span>第 {reflection.iteration} 轮反思</span>
+        <span className={`verdict ${reflection.needs_more_research ? 'insufficient' : 'sufficient'}`}>
+          {reflection.needs_more_research ? '信息不足，继续检索' : '信息充分'}
+        </span>
+      </div>
+      <ReactMarkdown>{reflection.critique}</ReactMarkdown>
+      {reflection.needs_more_research && reflection.follow_up_questions?.length > 0 && (
+        <ul className="follow-up-list">
+          {reflection.follow_up_questions.map((q) => (
+            <li key={q}>{q}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const [query, setQuery] = useState('')
   const [examples, setExamples] = useState([])
@@ -118,9 +156,10 @@ function App() {
     : null
 
   const subQuestions = steps.find((step) => step.node === 'decompose')?.update.sub_questions ?? []
-  const sourcesSoFar = steps
+  const liveSources = steps
     .filter((step) => step.node === 'search')
-    .reduce((sum, step) => sum + (step.update.search_results?.length ?? 0), 0)
+    .flatMap((step) => step.update.search_results ?? [])
+  const reflections = steps.filter((step) => step.node === 'reflect').map((step) => step.update)
 
   return (
     <div className="page">
@@ -193,7 +232,24 @@ function App() {
             </ul>
           )}
 
-          {isStreaming && sourcesSoFar > 0 && <p className="live-note">已检索到 {sourcesSoFar} 条资料…</p>}
+          {liveSources.length > 0 && (
+            <div className="live-sources">
+              <h3>检索过程（{liveSources.length} 条）</h3>
+              <div className="live-source-list">
+                {liveSources.map((source, index) => (
+                  <LiveSourceItem key={`${source.url}-${index}`} source={source} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {reflections.length > 0 && (
+            <div className="live-reflections">
+              {reflections.map((reflection) => (
+                <ReflectionEntry key={reflection.iteration} reflection={reflection} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
