@@ -7,6 +7,9 @@ from .tools import web_search
 
 MAX_SUB_QUESTIONS = 4
 MAX_RESULTS_PER_QUERY = 4
+# follow-up 轮已经被 reflect 判定"信息不足"，值得多花 credit 换更完整的检索
+FOLLOWUP_MAX_RESULTS_PER_QUERY = 8
+FOLLOWUP_SEARCH_DEPTH = "advanced"
 
 
 class SubQuestions(BaseModel):
@@ -49,11 +52,18 @@ def search_node(state: ResearchState) -> dict:
     这是图里"循环/重试"真正落地的节点——reflect 的反向边带着新的
     follow_up_questions 再次进入这里，search_results 用 operator.add 累积，
     不会丢掉上一轮已经查到的来源。
+
+    第一轮用 basic + 少量结果做广度召回；follow-up 轮已经是 reflect 明确指出
+    "这里信息不足"之后才会触发的，值得换成 advanced + 更多结果深挖——把更贵的
+    检索预算只花在已确认有缺口的地方，而不是不分场合地全局拉满。
     """
-    queries = state.get("follow_up_questions") or state["sub_questions"]
+    follow_up_questions = state.get("follow_up_questions")
+    queries = follow_up_questions or state["sub_questions"]
+    max_results = FOLLOWUP_MAX_RESULTS_PER_QUERY if follow_up_questions else MAX_RESULTS_PER_QUERY
+    search_depth = FOLLOWUP_SEARCH_DEPTH if follow_up_questions else "basic"
     results = []
     for q in queries:
-        results.extend(web_search(q, max_results=MAX_RESULTS_PER_QUERY))
+        results.extend(web_search(q, max_results=max_results, search_depth=search_depth))
     return {"search_results": results}
 
 """- synthesize：把背包里目前累积的所有搜索结果丢给

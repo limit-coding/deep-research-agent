@@ -46,3 +46,13 @@ def test_graph_runs_end_to_end_with_mocked_llm_and_search(mock_get_llm, mock_get
     assert "参考来源" in result["final_report"]
     # 两轮 search（初次 2 个子问题 + 反思后 1 个 follow-up）应该都被累积下来
     assert len(result["search_results"]) == 3
+
+    # 首轮 2 次调用走 basic + 默认结果数；reflect 判定不足后的 follow-up 调用
+    # 才升级到 advanced + 更多结果——验证“贵的检索预算只花在已知缺口”这个设计
+    calls = mock_web_search.call_args_list
+    assert len(calls) == 3
+    for call in calls[:2]:
+        assert call.kwargs["search_depth"] == "basic"
+        assert call.kwargs["max_results"] == 4
+    assert calls[2].kwargs["search_depth"] == "advanced"
+    assert calls[2].kwargs["max_results"] == 8
