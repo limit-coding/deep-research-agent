@@ -50,3 +50,11 @@ export async function fetchExamples() {
   if (!response.ok) return []
   return response.json()
 }
+
+export async function submitFeedback(query, report, sources, rating) {
+  await fetch('/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, report, sources, rating }),
+  })
+}

@@ -79,6 +79,39 @@ def test_stream_research_emits_node_events_then_done(mock_get_llm, mock_get_stru
     assert done_payloads[0]["critique"] == "信息充分"
 
 
+def test_feedback_bad_rating_logs_to_langfuse_when_configured(monkeypatch):
+    """rating=bad 且 Langfuse 已配置时，应该把 badcase 写入 Dataset 并返回 {ok: true}。"""
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "fake-key")
+
+    with patch("api.main.Langfuse") as MockLangfuse:
+        mock_lf = MockLangfuse.return_value
+        response = client.post(
+            "/api/feedback",
+            json={"query": "问题", "report": "报告", "sources": [], "rating": "bad"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    mock_lf.create_dataset_item.assert_called_once()
+    call_kwargs = mock_lf.create_dataset_item.call_args.kwargs
+    assert call_kwargs["input"] == "问题"
+    assert call_kwargs["dataset_name"] == "badcases"
+
+
+def test_feedback_good_rating_does_not_call_langfuse(monkeypatch):
+    """rating=good 时不应该调用 Langfuse（thumbs-up 无信息量，不值得存储）。"""
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "fake-key")
+
+    with patch("api.main.Langfuse") as MockLangfuse:
+        response = client.post(
+            "/api/feedback",
+            json={"query": "问题", "report": "报告", "sources": [], "rating": "good"},
+        )
+
+    assert response.status_code == 200
+    MockLangfuse.assert_not_called()
+
+
 def test_rate_limit_returns_429_after_per_ip_max(monkeypatch):
     monkeypatch.setattr(rate_limit, "PER_IP_MAX", 2)
     monkeypatch.setattr(rate_limit, "DAILY_MAX", 1000)

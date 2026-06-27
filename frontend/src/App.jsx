@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { fetchExamples, streamResearch } from './api'
+import { fetchExamples, streamResearch, submitFeedback } from './api'
 import './App.css'
 
 const NODE_ORDER = ['decompose', 'search', 'synthesize', 'reflect', 'output']
@@ -92,6 +92,7 @@ function App() {
   const [searchRounds, setSearchRounds] = useState(0)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [feedback, setFeedback] = useState(null) // null | 'good' | 'bad'
   const abortRef = useRef(null)
 
   useEffect(() => {
@@ -108,6 +109,7 @@ function App() {
     setSearchRounds(0)
     setResult(null)
     setError(null)
+    setFeedback(null)
 
     let rounds = 0
     try {
@@ -261,6 +263,31 @@ function App() {
             <span>🔎 {subQuestions.length} 个子问题</span>
             <span>📚 {result.sources.length} 条来源</span>
             <span>♻️ 反思 {result.iteration} 轮</span>
+            <span className="feedback-row">
+              {feedback ? (
+                <span className="feedback-thanks">已记录，感谢反馈</span>
+              ) : (
+                <>
+                  <span className="feedback-label">报告质量：</span>
+                  <button
+                    type="button"
+                    className="feedback-btn"
+                    onClick={() => {
+                      setFeedback('good')
+                      submitFeedback(query, result.report, result.sources, 'good')
+                    }}
+                  >👍</button>
+                  <button
+                    type="button"
+                    className="feedback-btn"
+                    onClick={() => {
+                      setFeedback('bad')
+                      submitFeedback(query, result.report, result.sources, 'bad')
+                    }}
+                  >👎</button>
+                </>
+              )}
+            </span>
           </div>
 
           <ReactMarkdown>{result.report}</ReactMarkdown>

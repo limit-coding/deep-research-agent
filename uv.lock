@@ -193,6 +193,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "python-dotenv" },
     { name = "tavily-python" },
+    { name = "tenacity" },
 ]
 
 [package.optional-dependencies]
@@ -216,6 +217,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "tavily-python", specifier = ">=0.5" },
+    { name = "tenacity", specifier = ">=9.1.4" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.30" },
 ]
 provides-extras = ["dev", "api"]

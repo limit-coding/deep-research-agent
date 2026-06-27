@@ -9,16 +9,19 @@ def get_llm():
     """
     provider = os.getenv("LLM_PROVIDER", "anthropic").lower()
 
+    # max_retries=3：交给各家 SDK 的内置重试（指数退避）处理 429/5xx。
+    # Tavily 那边用 tenacity 显式控制是因为我们自己包了 TavilyClient，没有 LangChain 托管；
+    # LLM 这边走 LangChain，直接用 SDK 参数，避免双层重试逻辑互相干扰。
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
         model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
-        return ChatAnthropic(model=model, temperature=0)  # 固定 0：评测时同一题多次跑要可比
+        return ChatAnthropic(model=model, temperature=0, max_retries=3)  # 固定 0：评测时同一题多次跑要可比
     elif provider == "openai":
         from langchain_openai import ChatOpenAI
 
         model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        return ChatOpenAI(model=model, temperature=0)
+        return ChatOpenAI(model=model, temperature=0, max_retries=3)
     elif provider == "deepseek":
         # DeepSeek 的 API 跟 OpenAI 兼容，复用 ChatOpenAI 换个 base_url/key 即可，
         # 不用单独装 langchain-deepseek 这类额外依赖。
@@ -28,6 +31,7 @@ def get_llm():
         return ChatOpenAI(
             model=model,
             temperature=0,
+            max_retries=3,
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             base_url="https://api.deepseek.com",
         )

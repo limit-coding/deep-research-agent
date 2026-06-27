@@ -56,6 +56,9 @@ def search_node(state: ResearchState) -> dict:
     第一轮用 basic + 少量结果做广度召回；follow-up 轮已经是 reflect 明确指出
     "这里信息不足"之后才会触发的，值得换成 advanced + 更多结果深挖——把更贵的
     检索预算只花在已确认有缺口的地方，而不是不分场合地全局拉满。
+
+    跨轮去重：Tavily 对相关查询经常返回同一批来源，过滤掉已出现过的 URL，
+    避免 synthesize prompt 里堆重复内容、inflate citation count。
     """
     follow_up_questions = state.get("follow_up_questions")
     queries = follow_up_questions or state["sub_questions"]
@@ -64,7 +67,8 @@ def search_node(state: ResearchState) -> dict:
     results = []
     for q in queries:
         results.extend(web_search(q, max_results=max_results, search_depth=search_depth))
-    return {"search_results": results}
+    seen_urls = {r["url"] for r in state["search_results"]}
+    return {"search_results": [r for r in results if r["url"] not in seen_urls]}
 
 """- synthesize：把背包里目前累积的所有搜索结果丢给
   LLM，让它写一份带引用编号 [1][2] 的报告草稿。"""
@@ -77,8 +81,11 @@ def synthesize_node(state: ResearchState) -> dict:
             HumanMessage(
                 content=(
                     f"研究问题：{state['query']}\n\n"
-                    f"以下是检索到的资料（带编号），写一份结构化报告草稿。"
-                    f"每个结论后面用 [编号] 标注来源，不要编造资料里没有的信息：\n\n{sources_text}"
+                    f"以下是检索到的资料（带编号）。请写一份结构化报告草稿，要求：\n"
+                    f"- 按主题分组，不要按检索顺序堆叠\n"
+                    f"- 若多条来源说的是同一件事，合并成一句结论，不要分别复述\n"
+                    f"- 每个结论后用 [编号] 标注支持它的来源，一个结论可以标多个编号\n"
+                    f"- 不要编造资料里没有的信息\n\n{sources_text}"
                 )
             )
         ]
@@ -112,7 +119,9 @@ def reflect_node(state: ResearchState) -> dict:
     return {
         "critique": result.critique,
         "needs_more_research": not result.sufficient,
-        "follow_up_questions": result.follow_up_questions,
+        # 与 decompose_node 对 sub_questions 的限制保持一致：LLM 可能返回很多
+        # follow-up questions，不加上限会导致下一轮检索条数爆炸式增长。
+        "follow_up_questions": result.follow_up_questions[:MAX_SUB_QUESTIONS],
         "iteration": state["iteration"] + 1,
     }
 

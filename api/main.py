@@ -1,3 +1,4 @@
+import logging
 import os
 from collections.abc import Iterable
 from typing import Annotated
@@ -9,11 +10,15 @@ load_dotenv()
 from fastapi import Depends, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.sse import EventSourceResponse, ServerSentEvent
+from langfuse import Langfuse
+from pydantic import BaseModel
 
 from api.rate_limit import check_rate_limit
 from deep_research_agent.graph import build_graph
 from deep_research_agent.state import initial_state
 from eval.dataset import QA_PAIRS
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Deep Research Agent Demo API")
 
@@ -21,8 +26,8 @@ _allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://loca
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_methods=["GET"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 # 复用同一个编译好的图：跟 main.py/eval/run_eval.py 一样的接入方式，
@@ -30,6 +35,8 @@ app.add_middleware(
 _graph = build_graph()
 
 RateLimitDep = Annotated[None, Depends(check_rate_limit)]
+
+BADCASE_DATASET_NAME = "badcases"
 
 
 @app.get("/api/examples")
@@ -72,3 +79,40 @@ def stream_research(
     _: RateLimitDep,
 ) -> Iterable[ServerSentEvent]:
     return _stream_research(query)
+
+
+class FeedbackRequest(BaseModel):
+    query: str
+    report: str
+    sources: list[dict]
+    rating: str  # "good" | "bad"
+
+
+@app.post("/api/feedback")
+def submit_feedback(body: FeedbackRequest) -> dict:
+    """用户对报告的满意度反馈。
+
+    只有 rating="bad" 的 badcase 才写入 Langfuse Dataset——thumbs-up 没有信息量，
+    不值得存储。Langfuse 未配置时静默跳过，不影响前端显示。
+
+    这条 API 关闭了 Badcase 数据进入 eval 队列的"闭环"：用户发现报告质量差 →
+    badcase 自动被记录 → 下次跑 eval experiment 时可以用 langfuse.get_dataset("badcases")
+    把这批题加进来，观察优化是否真的改善了这类问题。
+    """
+    if body.rating == "bad" and os.getenv("LANGFUSE_PUBLIC_KEY"):
+        try:
+            lf = Langfuse()
+            lf.create_dataset(
+                name=BADCASE_DATASET_NAME,
+                description="用户标记为不满意的报告，待人工审核后加入评测集",
+            )
+            lf.create_dataset_item(
+                dataset_name=BADCASE_DATASET_NAME,
+                input=body.query,
+                metadata={"report": body.report, "sources": body.sources},
+            )
+            lf.flush()
+        except Exception:
+            logger.warning("Failed to log badcase to Langfuse", exc_info=True)
+
+    return {"ok": True}
